@@ -1,0 +1,74 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: password123
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq_logs:/var/log/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - rabbit_network
+
+  api:
+    build:
+      context: ./src
+      dockerfile: ../Dockerfile.api
+    container_name: rabbitmq_api
+    restart: unless-stopped
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__UserName=admin
+      - RabbitMQ__Password=password123
+      - RabbitMQ__Port=5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - rabbit_network
+    volumes:
+      - ./logs:/app/logs
+
+  worker:
+    build:
+      context: ./src
+      dockerfile: ../Dockerfile.worker
+    container_name: rabbitmq_worker
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__UserName=admin
+      - RabbitMQ__Password=password123
+      - RabbitMQ__Port=5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - rabbit_network
+    volumes:
+      - ./logs:/app/logs
+
+networks:
+  rabbit_network:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:
+  rabbitmq_logs:

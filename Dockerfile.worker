@@ -1,0 +1,23 @@
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+WORKDIR /app
+
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+COPY ["RabbitComunicator.Worker", "RabbitComunicator.Worker/"]
+RUN dotnet restore "RabbitComunicator.Worker/RabbitComunicator.Worker.csproj"
+
+COPY . .
+WORKDIR "/src/RabbitComunicator.Worker"
+RUN dotnet build "RabbitComunicator.Worker.csproj" -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish "RabbitComunicator.Worker.csproj" -c Release -o /app/publish
+
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+
+RUN mkdir -p /app/logs
+
+ENTRYPOINT ["dotnet", "RabbitComunicator.Worker.dll"]
